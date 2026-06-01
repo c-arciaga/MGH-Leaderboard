@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Race to the Top - MGH Leaderboard</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        /* --- MGH BRAND COLORS --- */
+        :root {
+            --mgh-light-green: #B2D235;
+            --mgh-med-green: #76B043;
+            --mgh-dark-grey: #414042;
+            --mgh-light-purple: #965C9E;
+            --mgh-dark-purple: #702894;
+            --mgh-bright-teal: #00ACBF;
+            --mgh-dark-teal: #1E798D;
+            --bg-white: #ffffff;
+            --track-bg: #f8f9fa;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-white);
+            color: var(--mgh-dark-grey);
+            overflow-x: hidden;
+            /* Flexbox layout to stick the footer to the bottom */
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* --- COMMAND CENTER --- */
+        #admin-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            padding: 20px 30px;
+            border-bottom: 4px solid var(--mgh-bright-teal);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+            position: absolute; 
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .hidden-panel { transform: translateY(-115%); }
+
+        #unit-inputs {
+            max-height: 350px;
+            overflow-y: auto;
+            padding-right: 10px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            background: #fafafa;
+            padding: 10px;
+        }
+
+        #unit-inputs::-webkit-scrollbar { width: 8px; }
+        #unit-inputs::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        #unit-inputs::-webkit-scrollbar-thumb { background: var(--mgh-bright-teal); border-radius: 4px; }
+
+        h2, h3 { margin-top: 0; color: var(--mgh-dark-grey); font-weight: 800; }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 8px;
+            align-items: center;
+            background: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        input[type="text"], input[type="number"] {
+            padding: 6px;
+            background: #f9f9f9;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: inherit;
+            font-weight: 600;
+            color: var(--mgh-dark-grey);
+            font-size: 13px;
+        }
+
+        .unit-name { width: 120px; }
+        .unit-score { width: 45px; text-align: center; }
+        .unit-compliance { width: 55px; text-align: center; }
+
+        button {
+            background-color: var(--mgh-bright-teal);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-weight: 800;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            box-shadow: 0 4px 10px rgba(0, 172, 191, 0.3);
+            font-family: 'Inter', sans-serif;
+        }
+
+        button:hover { background-color: var(--mgh-dark-teal); transform: translateY(-2px); }
+        .btn-add { background-color: var(--mgh-med-green); margin-bottom: 10px; padding: 8px 16px; box-shadow: 0 4px 10px rgba(118, 176, 67, 0.3);}
+        .btn-add:hover { background-color: #5d8e33; }
+        .btn-remove { background-color: var(--mgh-dark-purple); padding: 4px 10px; font-size: 12px; box-shadow: none; }
+        .btn-remove:hover { background-color: #551e70; }
+        .btn-secondary { background-color: var(--mgh-dark-grey); box-shadow: none; }
+        .btn-secondary:hover { background-color: #222; }
+
+        .admin-controls {
+            margin-top: 15px; 
+            padding-top: 15px; 
+            border-top: 1px solid #ccc;
+            display: flex;
+            gap: 10px;
+        }
+
+        #show-panel-btn {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            display: none;
+            z-index: 1000;
+            background: white;
+            color: var(--mgh-dark-grey);
+            border: 2px solid var(--mgh-bright-teal);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        /* --- DASHBOARD SHARED STYLES --- */
+        .dashboard-view {
+            padding: 180px 40px 40px 40px; 
+            max-width: 1300px;
+            margin: 0 auto;
+            position: relative;
+            flex: 1; /* Allows this container to grow and push footer down */
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        #mgh-logo-container {
+            position: absolute;
+            top: 30px;
+            right: 40px;
+            height: 160px; 
+            display: flex;
+            align-items: center;
+        }
+        #mgh-logo-container img { height: 100%; object-fit: contain; }
+
+        .board-title {
+            color: var(--mgh-dark-grey);
+            text-align: center;
+            text-transform: uppercase;
+            font-size: 36px; 
+            letter-spacing: 1px;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .timestamp {
+            text-align: center;
+            color: var(--mgh-dark-teal);
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 50px; 
+        }
+
+        /* --- VIEW 1: RACE TRACK --- */
+        .track-wrapper {
+            background: var(--track-bg);
+            border: 2px solid #ddd;
+            border-radius: 12px;
+            position: relative;
+            padding: 20px 0; 
+            box-shadow: inset 0 4px 15px rgba(0,0,0,0.05), 0 10px 30px rgba(0,0,0,0.08);
+        }
+
+        .finish-line {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 40px;
+            background-image: conic-gradient(var(--mgh-dark-grey) 90deg, #fff 90deg 180deg, var(--mgh-dark-grey) 180deg 270deg, #fff 270deg);
+            background-size: 20px 20px;
+            border-left: 3px solid var(--mgh-bright-teal);
+            border-radius: 0 12px 12px 0;
+            z-index: 1;
+        }
+
+        .start-line {
+            position: absolute;
+            left: 140px;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background-color: var(--mgh-med-green);
+            z-index: 1;
+        }
+
+        .grid-lines {
+            position: absolute;
+            left: 140px;
+            right: 40px;
+            top: 0;
+            bottom: 0;
+            display: flex;
+            justify-content: space-between;
+            z-index: 0;
+            pointer-events: none;
+        }
+        .grid-marker {
+            width: 2px;
+            background-color: rgba(65, 64, 66, 0.08); 
+            height: 100%;
+            position: relative;
+        }
+        .grid-number {
+            position: absolute;
+            top: -45px; 
+            left: -25px;
+            font-weight: 800;
+            color: white;
+            background: var(--mgh-dark-grey);
+            border: 2px solid var(--mgh-light-green);
+            padding: 3px 8px;
+            border-radius: 5px;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        .lane {
+            height: 65px; 
+            border-bottom: 1px dashed rgba(65, 64, 66, 0.1);
+            position: relative;
+            display: flex;
+            align-items: center;
+            z-index: 2;
+        }
+        .lane:last-child { border-bottom: none; }
+
+        .starting-hands {
+            position: absolute;
+            left: 20px; 
+            top: 50%;
+            transform: translateY(-50%);
+            width: 85px;
+            height: auto;
+            z-index: 3;
+            mix-blend-mode: multiply; 
+        }
+
+        @keyframes scrub {
+            0% { transform: translateY(-50%) translateX(0px) rotate(0deg); }
+            25% { transform: translateY(-50%) translateX(4px) rotate(5deg); }
+            50% { transform: translateY(-50%) translateX(0px) rotate(0deg); }
+            75% { transform: translateY(-50%) translateX(-4px) rotate(-5deg); }
+            100% { transform: translateY(-50%) translateX(0px) rotate(0deg); }
+        }
+
+        .starting-hands.washing { animation: scrub 0.3s infinite ease-in-out; }
+
+        .foam-base {
+            position: absolute;
+            left: 130px; 
+            top: 50%;
+            transform: translateY(-50%);
+            height: 12px; 
+            width: 0%; 
+            transition: width 2.5s cubic-bezier(0.25, 1, 0.5, 1);
+            z-index: 4; 
+            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.7) 20%, rgba(255,255,255,0.9) 100%);
+            border-radius: 6px;
+            box-shadow: 0 0 10px rgba(255,255,255,0.8);
+        }
+
+        .racer-container {
+            position: absolute;
+            left: 100px; 
+            transition: left 2.5s cubic-bezier(0.25, 1, 0.5, 1);
+            display: flex;
+            align-items: center;
+            z-index: 15;
+            cursor: pointer;
+        }
+
+        .soap-icon {
+            width: 100px;
+            height: 70px;
+            object-fit: contain; 
+            filter: drop-shadow(0px 5px 6px rgba(0,0,0,0.4)); 
+            margin-right: 15px;
+            transform: rotate(-5deg); 
+        }
+
+        @keyframes soap-bob {
+            0% { transform: translateY(0) rotate(-5deg); }
+            50% { transform: translateY(-6px) rotate(-2deg); }
+            100% { transform: translateY(0) rotate(-5deg); }
+        }
+
+        .bubbling .soap-icon { animation: soap-bob 0.4s infinite ease-in-out; }
+
+        .bubble-wrapper {
+            position: absolute;
+            left: 0; right: 0; top: 0; bottom: 0;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .pop-bubble {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%) scale(0); 
+            background-image: url('bubbles.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            opacity: 0;
+            animation-name: bubble-pop-drift;
+            animation-timing-function: ease-out;
+            animation-fill-mode: forwards; 
+        }
+
+        @keyframes bubble-pop-drift {
+            0% { transform: translateY(-50%) scale(0); opacity: 0; }
+            40% { transform: translateY(-50%) scale(1.2); opacity: var(--target-opacity); } 
+            70% { transform: translateY(-52%) scale(0.95); opacity: var(--target-opacity); } 
+            100% { transform: translateY(calc(-50% - 15px)) scale(1); opacity: var(--target-opacity); } 
+        }
+
+        .racer-label {
+            background: #ffffff; 
+            color: var(--mgh-dark-grey); 
+            padding: 6px 14px; 
+            border-radius: 20px;
+            font-weight: 800;
+            font-size: 13px; 
+            white-space: nowrap;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08); 
+            border: 2px solid var(--mgh-bright-teal); 
+            display: flex;
+            align-items: center;
+        }
+
+        .score-highlight {
+            color: var(--mgh-light-green);
+            margin-left: 6px;
+            font-size: 12px; 
+        }
+
+        /* --- VIEW 2: TOP 5 GRAPH --- */
+        #top5-view {
+            display: none; /* Hidden by default */
+            max-width: 900px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            border-top: 6px solid var(--mgh-bright-teal);
+        }
+
+        .graph-title {
+            text-align: center;
+            color: var(--mgh-dark-grey);
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 30px;
+        }
+
+        .bar-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .bar-rank {
+            font-size: 24px;
+            font-weight: 800;
+            color: #ddd;
+            width: 40px;
+        }
+
+        .bar-label {
+            width: 120px;
+            font-weight: 800;
+            font-size: 18px;
+            color: var(--mgh-dark-grey);
+        }
+
+        .bar-track {
+            flex-grow: 1;
+            background: #f1f1f1;
+            height: 40px;
+            border-radius: 20px;
+            position: relative;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .bar-fill {
+            height: 100%;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 15px;
+            color: white;
+            font-weight: 800;
+            font-size: 16px;
+            width: 0%; /* Animates in */
+            transition: width 1.5s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        /* Colors for the Top 5 Bars */
+        .rank-1 .bar-fill { background: linear-gradient(90deg, #1E798D, #00ACBF); } /* Teal */
+        .rank-2 .bar-fill { background: linear-gradient(90deg, #76B043, #B2D235); } /* Green */
+        .rank-3 .bar-fill { background: linear-gradient(90deg, #702894, #965C9E); } /* Purple */
+        .rank-4 .bar-fill { background: #00ACBF; }
+        .rank-5 .bar-fill { background: #B2D235; }
+        
+        .rank-1 .bar-rank { color: #FFD700; } /* Gold */
+        .rank-2 .bar-rank { color: #C0C0C0; } /* Silver */
+        .rank-3 .bar-rank { color: #CD7F32; } /* Bronze */
+
+        /* --- FOOTER BAR --- */
+        #footer-bar {
+            background-color: #f4f6f8; 
+            color: var(--mgh-dark-teal); 
+            text-align: center;
+            padding: 12px 0;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            width: 100%;
+            border-top: 3px solid var(--mgh-bright-teal);
+            margin-top: auto; /* Pushes the footer to the bottom of the flex container */
+        }
+    </style>
+</head>
+<body>
+
+    <div id="admin-panel">
+        <h2>⚙️ Command Center</h2>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="color: var(--mgh-dark-grey); font-weight: 600; font-size: 14px;">Report Title:</label><br>
+            <input type="text" id="input-title" value="Race to the Top: May Leaderboard" style="width: 400px; font-size: 16px; padding: 6px; margin-top: 5px;">
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #ccc; padding-top: 15px;">
+            <h3 style="margin: 0; font-size: 16px;">Participating Units</h3>
+            <button class="btn-add" onclick="addUnit()" style="margin: 0;">+ Add Unit</button>
+        </div>
+
+        <div id="unit-inputs" style="margin-top: 10px;"></div>
+
+        <div class="admin-controls">
+            <button onclick="updateRaceBoard()">🏁 View Race Track</button>
+            <button style="background-color: var(--mgh-dark-purple);" onclick="updateTop5Graph()">📊 View Top 5 Graph</button>
+            <button class="btn-secondary" onclick="toggleAdminPanel()">👁️ Hide HUD</button>
+        </div>
+    </div>
+
+    <button id="show-panel-btn" onclick="toggleAdminPanel()">⚙️ Show Command Center</button>
+
+    <div class="dashboard-view">
+        
+        <div id="mgh-logo-container">
+            <img src="mgh-logo.png" alt="MGH Logo" onerror="this.style.display='none';">
+        </div>
+
+        <h1 class="board-title" id="board-title">Race to the Top: May Leaderboard</h1>
+        <p class="timestamp" id="timestamp">Data accurate as of: Updating...</p>
+        
+        <div id="race-view" class="track-wrapper">
+            <div class="start-line"></div>
+            
+            <div class="grid-lines">
+                <div class="grid-marker"><span class="grid-number">START</span></div>
+                <div class="grid-marker"><span class="grid-number">1 ENTRY</span></div>
+                <div class="grid-marker"><span class="grid-number">2 ENTRIES</span></div>
+                <div class="grid-marker"><span class="grid-number">3 ENTRIES</span></div>
+                <div class="grid-marker"><span class="grid-number">4 ENTRIES</span></div>
+                <div class="grid-marker"><span class="grid-number">5 ENTRIES</span></div>
+                <div class="grid-marker" style="opacity: 0;"></div>
+            </div>
+
+            <div class="finish-line"></div>
+            <div id="lanes-container"></div>
+        </div>
+
+        <div id="top5-view">
+            <h2 class="graph-title">🏆 Top 5 Units by Compliance</h2>
+            <div id="graph-container">
+                </div>
+        </div>
+
+    </div>
+
+    <div id="footer-bar">MGH Hand Hygiene Campaign 2026</div>
+
+    <script>
+        let unitsData = [
+            { id: 1, name: "FBC", score: 4, compliance: 85 }, 
+            { id: 2, name: "NICU", score: 6, compliance: 96 },
+            { id: 3, name: "G5", score: 2, compliance: 72 }, 
+            { id: 4, name: "T9", score: 5, compliance: 90 },
+            { id: 5, name: "J5", score: 1, compliance: 65 }
+        ];
+
+        let unitCounter = 6; 
+
+        function renderAdminInputs() {
+            const container = document.getElementById('unit-inputs');
+            container.innerHTML = ''; 
+
+            unitsData.forEach((unit) => {
+                container.innerHTML += `
+                    <div class="input-group">
+                        <label style="color: var(--mgh-dark-grey); font-weight:600; font-size:12px;">Unit:</label>
+                        <input type="text" class="unit-name" value="${unit.name}" onchange="updateData(${unit.id}, 'name', this.value)">
+                        
+                        <label style="margin-left: 5px; color: var(--mgh-dark-grey); font-weight:600; font-size:12px;">Entries:</label>
+                        <input type="number" class="unit-score" value="${unit.score}" min="0" max="6" onchange="updateData(${unit.id}, 'score', this.value)">
+                        
+                        <label style="margin-left: 5px; color: var(--mgh-dark-grey); font-weight:600; font-size:12px;">Comp %:</label>
+                        <input type="number" class="unit-compliance" value="${unit.compliance}" min="0" max="100" onchange="updateData(${unit.id}, 'compliance', this.value)">
+
+                        <button class="btn-remove" onclick="removeUnit(${unit.id})">✖</button>
+                    </div>
+                `;
+            });
+        }
+
+        function updateData(id, field, value) {
+            const unit = unitsData.find(u => u.id === id);
+            if (unit) unit[field] = (field === 'score' || field === 'compliance') ? parseInt(value) || 0 : value;
+        }
+
+        function addUnit() {
+            unitsData.push({ id: unitCounter++, name: "New Unit", score: 0, compliance: 0 });
+            renderAdminInputs();
+        }
+
+        function removeUnit(id) {
+            unitsData = unitsData.filter(u => u.id !== id);
+            renderAdminInputs();
+        }
+
+        function updateHeader() {
+            document.getElementById('board-title').innerText = document.getElementById('input-title').value;
+            const now = new Date();
+            const dateOptions = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' };
+            document.getElementById('timestamp').innerText = "Data accurate as of: " + now.toLocaleDateString('en-CA', dateOptions);
+        }
+
+        // --- RACE TRACK FUNCTIONS ---
+        function updateRaceBoard() {
+            document.getElementById('top5-view').style.display = 'none';
+            document.getElementById('race-view').style.display = 'block';
+            updateHeader();
+            buildTrack(); 
+
+            const sortedUnits = [...unitsData].sort((a, b) => {
+                if (b.score === a.score) return b.compliance - a.compliance;
+                return b.score - a.score;
+            });
+            
+            sortedUnits.forEach((unit, index) => {
+                const racer = document.getElementById(`racer-${unit.id}`);
+                const bubblesWrap = document.getElementById(`bubbles-${unit.id}`);
+                const foam = document.getElementById(`foam-${unit.id}`);
+                const soap = racer.querySelector('.soap-icon');
+                const hands = document.getElementById(`hands-${unit.id}`); 
+                const odometerSpan = document.getElementById(`odometer-${unit.id}`);
+                
+                let score = unit.score;
+                if(score > 6) score = 6;
+                if(score < 0) score = 0;
+
+                const delay = 50 + (index * 150);
+
+                setTimeout(() => {
+                    soap.classList.add('bubbling');
+                    if (hands) hands.classList.add('washing');
+
+                    rollOdometer(odometerSpan, 0, score, 2000); // Removed compliance % from visual track
+
+                    const ratio = score / 6;
+
+                    if (score === 0) {
+                        racer.style.left = '90px'; 
+                        foam.style.width = '0px';
+                    } else if (score === 6) {
+                        racer.style.left = 'calc(100% - 150px)'; 
+                        foam.style.width = 'calc(100% - 265px)';
+                    } else {
+                        racer.style.left = `calc(130px + (100% - 290px) * ${ratio})`;
+                        foam.style.width = `calc(5px + (100% - 270px) * ${ratio})`;
+                    }
+
+                    if (score > 0) {
+                        const numBubbles = score * 10; 
+                        
+                        for(let i = 0; i < numBubbles; i++) {
+                            const bubble = document.createElement('div');
+                            bubble.className = 'pop-bubble';
+                            
+                            const isHero = Math.random() > 0.85; 
+                            const isMicro = Math.random() > 0.8; 
+                            let size;
+                            if (isHero) { size = Math.floor(Math.random() * 10) + 30; } 
+                            else if (isMicro) { size = Math.floor(Math.random() * 8) + 8; } 
+                            else { size = Math.floor(Math.random() * 15) + 15; } 
+                            
+                            bubble.style.width = `${size}px`;
+                            bubble.style.height = `${size}px`;
+                            
+                            const targetOpacity = (Math.random() * 0.55 + 0.4).toFixed(2); 
+                            bubble.style.setProperty('--target-opacity', targetOpacity);
+                            
+                            const hueShift = Math.floor(Math.random() * 90) - 45; 
+                            bubble.style.filter = `drop-shadow(0px 3px 3px rgba(0,0,0,0.25)) hue-rotate(${hueShift}deg)`;
+                            
+                            const popDuration = (Math.random() * 0.8 + 0.4).toFixed(2);
+                            bubble.style.animationDuration = `${popDuration}s`;
+                            
+                            const progress = i / numBubbles;
+                            const popDelay = progress * 2300; 
+                            bubble.style.animationDelay = `${popDelay}ms`;
+                            
+                            if (score === 6) {
+                                bubble.style.left = `calc(130px + (100% - 280px) * ${progress})`;
+                            } else {
+                                bubble.style.left = `calc(130px + ((100% - 290px) * ${ratio}) * ${progress})`;
+                            }
+
+                            bubblesWrap.appendChild(bubble);
+                        }
+                    }
+
+                    setTimeout(() => {
+                        soap.classList.remove('bubbling');
+                        if (hands) hands.classList.remove('washing'); 
+                        
+                        if(score === 6) {
+                            fireConfetti(racer);
+                        }
+                    }, 2500);
+
+                }, delay);
+            });
+        }
+
+        function buildTrack() {
+            const lanesContainer = document.getElementById('lanes-container');
+            lanesContainer.innerHTML = '';
+
+            const sortedUnits = [...unitsData].sort((a, b) => {
+                if (b.score === a.score) return b.compliance - a.compliance;
+                return b.score - a.score;
+            });
+
+            sortedUnits.forEach((unit) => {
+                lanesContainer.innerHTML += `
+                    <div class="lane">
+                        <img src="hands-start.png" id="hands-${unit.id}" class="starting-hands" alt="Washing Hands" onerror="this.style.display='none';">
+                        <div class="foam-base" id="foam-${unit.id}"></div>
+                        <div class="bubble-wrapper" id="bubbles-${unit.id}"></div>
+                        <div class="racer-container" id="racer-${unit.id}">
+                            <img src="soap.png" class="soap-icon" alt="Soap" onerror="this.style.display='none';">
+                            <div class="racer-label">
+                                <span>${unit.name}</span> 
+                                <span class="score-highlight" id="odometer-${unit.id}">0 Entries</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function rollOdometer(element, start, end, duration) {
+            let startTimestamp = null;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const currentVal = Math.floor(progress * (end - start) + start);
+                element.innerHTML = currentVal + (currentVal === 1 ? " Entry" : " Entries");
+                
+                if (progress < 1) {
+                    window.requestAnimationFrame(step);
+                } else {
+                    element.innerHTML = end + (end === 1 ? " Entry" : " Entries");
+                }
+            };
+            window.requestAnimationFrame(step);
+        }
+
+        // --- TOP 5 GRAPH FUNCTIONS ---
+        function updateTop5Graph() {
+            document.getElementById('race-view').style.display = 'none';
+            document.getElementById('top5-view').style.display = 'block';
+            updateHeader();
+            
+            const graphContainer = document.getElementById('graph-container');
+            graphContainer.innerHTML = '';
+
+            // Sort purely by compliance % and grab the top 5
+            const top5Units = [...unitsData]
+                .sort((a, b) => b.compliance - a.compliance)
+                .slice(0, 5);
+
+            top5Units.forEach((unit, index) => {
+                const rank = index + 1;
+                
+                graphContainer.innerHTML += `
+                    <div class="bar-container rank-${rank}">
+                        <div class="bar-rank">#${rank}</div>
+                        <div class="bar-label">${unit.name}</div>
+                        <div class="bar-track">
+                            <div class="bar-fill" id="bar-${unit.id}">0%</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Animate the bars
+            setTimeout(() => {
+                top5Units.forEach((unit) => {
+                    const bar = document.getElementById(`bar-${unit.id}`);
+                    if(bar) {
+                        bar.style.width = `${unit.compliance}%`;
+                        
+                        // Counter animation for the percentage text
+                        let startTimestamp = null;
+                        const duration = 1500;
+                        const step = (timestamp) => {
+                            if (!startTimestamp) startTimestamp = timestamp;
+                            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                            const currentVal = Math.floor(progress * unit.compliance);
+                            bar.innerHTML = currentVal + "%";
+                            if (progress < 1) window.requestAnimationFrame(step);
+                            else bar.innerHTML = unit.compliance + "%";
+                        };
+                        window.requestAnimationFrame(step);
+                    }
+                });
+            }, 100);
+        }
+
+        function fireConfetti(element) {
+            const rect = element.getBoundingClientRect();
+            const xPos = (rect.left + (rect.width / 2)) / window.innerWidth;
+            const yPos = (rect.top + (rect.height / 2)) / window.innerHeight;
+            
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { x: xPos, y: yPos },
+                colors: ['#00ACBF', '#1E798D', '#B2D235', '#76B043', '#702894', '#965C9E'],
+                zIndex: 9999
+            });
+        }
+
+        function toggleAdminPanel() {
+            const panel = document.getElementById('admin-panel');
+            const showBtn = document.getElementById('show-panel-btn');
+
+            if (panel.classList.contains('hidden-panel')) {
+                panel.classList.remove('hidden-panel');
+                showBtn.style.display = 'none';
+            } else {
+                panel.classList.add('hidden-panel');
+                showBtn.style.display = 'block';
+            }
+        }
+
+        window.onload = () => {
+            renderAdminInputs();
+            updateRaceBoard();
+        };
+    </script>
+</body>
+</html>
